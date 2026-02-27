@@ -12,7 +12,7 @@
       "trigger_texts": [],
       "action": "click_target",
       "confidence": 0.75,
-      "post_delay": 0.5,
+      "post_delay": 1.0,
       "enabled": true
     },
     {
@@ -24,7 +24,10 @@
       "trigger_texts": [],
       "action": "none",
       "confidence": 0.7,
-      "enabled": true
+      "enabled": true,
+      "condition_texts": [
+        "已获得奖励"
+      ]
     },
     {
       "name": "关闭",
@@ -37,7 +40,7 @@
       "condition_texts": [],
       "action": "click_target",
       "confidence": 0.7,
-      "post_delay": 0.5,
+      "post_delay": 1.0,
       "enabled": true
     },
     {
@@ -47,25 +50,25 @@
       "trigger_texts": [],
       "action": "click_target",
       "confidence": 0.7,
-      "post_delay": 0.5,
+      "post_delay": 1.0,
       "enabled": true
     },
     {
       "name": "打开",
       "description": "主动点击观看广告、领取奖励等按钮",
       "trigger_images": [
-        "open_1772125905.png"
+        "open_1772199475.png"
       ],
       "trigger_texts": [],
       "action": "click_target",
       "confidence": 0.6,
-      "post_delay": 0.5,
+      "post_delay": 1.0,
       "enabled": true
     }
   ],
   "settings": {
     "idle_timeout": 300,
-    "scan_interval": 0.5,
+    "scan_interval": 1.0,
     "click_delay_min": 0.1,
     "click_delay_max": 0.3,
     "random_offset": 5,
