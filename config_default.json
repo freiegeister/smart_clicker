@@ -1,28 +1,20 @@
 {
-  "game_name": "斗破奇兵",
+  "game_name": "默认游戏",
   "description": "默认配置模板，包含五种标准策略",
   "strategies": [
     {
       "name": "干扰弹窗",
       "description": "最高优先级，立即关闭各种干扰弹窗（活动通知、系统提示等），无需前置条件",
-      "trigger_images": [
-        "popup_1772125941.png",
-        "popup_1772125970.png",
-        "popup_1772181905.png"
-      ],
-      "trigger_texts": [],
+      "trigger_images": [],
       "action": "click_target",
-      "confidence": 0.75,
+      "confidence": 0.7,
       "post_delay": 1.0,
       "enabled": true
     },
     {
       "name": "关闭前置条件",
       "description": "用于检测是否可以关闭的标志（如'奖励已发放'、'广告已完成'等），不直接点击",
-      "trigger_images": [
-        "close_pre_1772125878.png"
-      ],
-      "trigger_texts": [],
+      "trigger_images": [],
       "action": "none",
       "confidence": 0.7,
       "enabled": true
@@ -30,12 +22,8 @@
     {
       "name": "关闭",
       "description": "需要满足前置条件才能点击的关闭按钮（安全关闭）",
-      "trigger_images": [
-        "close_1772125858.png"
-      ],
-      "trigger_texts": [],
+      "trigger_images": [],
       "condition_images": [],
-      "condition_texts": [],
       "action": "click_target",
       "confidence": 0.7,
       "post_delay": 1.0,
@@ -45,7 +33,6 @@
       "name": "关闭后置条件",
       "description": "点击关闭后需要确认的按钮（如二次确认弹窗），在关闭策略触发后执行",
       "trigger_images": [],
-      "trigger_texts": [],
       "action": "click_target",
       "confidence": 0.7,
       "post_delay": 1.0,
@@ -54,12 +41,9 @@
     {
       "name": "打开",
       "description": "主动点击观看广告、领取奖励等按钮",
-      "trigger_images": [
-        "open_1772199475.png"
-      ],
-      "trigger_texts": [],
+      "trigger_images": [],
       "action": "click_target",
-      "confidence": 0.6,
+      "confidence": 0.7,
       "post_delay": 1.0,
       "enabled": true
     }
@@ -69,9 +53,6 @@
     "scan_interval": 1.0,
     "click_delay_min": 0.1,
     "click_delay_max": 0.3,
-    "random_offset": 5,
-    "multi_scale_search": true,
-    "edge_detection": true,
-    "ocr_enabled": true
+    "random_offset": 5
   }
 }

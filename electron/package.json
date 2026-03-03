@@ -1,0 +1,45 @@
+{
+  "name": "smart-clicker",
+  "version": "1.0.0",
+  "description": "Smart Clicker - 游戏自动化工具",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.smartclicker.app",
+    "productName": "SmartClicker",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "index.html",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../venv",
+        "to": "python_app/venv"
+      },
+      {
+        "from": "../",
+        "to": "python_app",
+        "filter": [
+          "main.py",
+          "game_manager.py",
+          "current_game/**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "target": "dmg"
+    }
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  }
+}

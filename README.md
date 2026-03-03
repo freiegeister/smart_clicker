@@ -1,20 +1,45 @@
 # Smart Clicker - 智能游戏自动化工具
 
-基于图片识别和 OCR 文字识别的自动化点击工具。
+基于图片识别的自动化点击工具。
 
 ## 快速开始
 
-### 1. 安装依赖
+### 开发环境
+
+1. 安装依赖
 ```bash
-pip install PySide6 opencv-python pyautogui mss pillow easyocr
+pip install -r requirements.txt
 ```
 
-### 2. 运行
+2. 运行
 ```bash
 python gui.py
 ```
 
-### 3. 使用流程
+### 打包发布
+
+1. 进入 Electron 目录
+```bash
+cd electron
+```
+
+2. 安装依赖（首次）
+```bash
+npm install
+```
+
+3. 打包应用
+```bash
+npm run build
+```
+
+4. 输出文件
+- macOS: `dist/SmartClicker-1.0.0.dmg`
+- Windows: `dist/SmartClicker-1.0.0.exe`
+
+用户无需安装 Python，开箱即用。
+
+## 使用流程
 1. 点击「📷 截图添加素材」，截取游戏按钮
 2. 选择按钮类型（干扰弹窗、关闭、打开等）
 3. 点击「▶ 启动挂机引擎」
@@ -31,25 +56,23 @@ python gui.py
 
 ## 游戏管理
 
-### 单游戏模式（推荐）
+### 开发模式
 ```bash
 python gui.py                    # 直接使用，配置保存在 current_game/
 ```
 
-### 多游戏模式
+### 打包发布
 ```bash
-# 创建游戏
-python manage_games.py create 游戏名
-
-# 加载游戏
-python manage_games.py load 游戏名
-
-# 保存游戏
-python manage_games.py export 游戏名
-
-# 打包发布
-python build_package.py 游戏名
+cd electron
+npm install                      # 首次需要安装依赖
+npm run build                    # 打包成独立应用
 ```
+
+打包后输出：
+- macOS: `electron/dist/SmartClicker-1.0.0.dmg`
+- Windows: `electron/dist/SmartClicker-1.0.0.exe`
+
+用户无需安装 Python，开箱即用。
 
 ## 配置说明
 
@@ -74,31 +97,44 @@ python build_package.py 游戏名
 
 ## 诊断工具
 
-```bash
-# 检查配置和图片
-python check_config.py
+开发模式下可以使用以下工具：
 
-# 测试图片识别
+```bash
+# 测试所有图片的识别效果
 python test_recognition.py
 
-# 恢复丢失的数据
-python recover_data.py
+# 测试单张图片
+python test_recognition.py popup_1772125941.png
+
+# 其他诊断工具
+python 诊断识别问题.py
+python 对比测试.py
 ```
 
 ## 常见问题
 
 **Q: 识别不到图片？**
-- 运行 `python test_recognition.py` 诊断
-- 降低置信度（confidence: 0.5）
-- 重新截图
+- 运行 `python test_recognition.py` 查看所有图片的识别效果
+- 查看日志中的匹配分数，如果接近 0.7 可以降低阈值
+- 如果分数 < 0.6，需要重新截图
+- 确保游戏界面显示目标按钮
 
 **Q: 没有点击行为？**
-- 检查配置：`python check_config.py`
 - 查看日志：`debug.log`
-- 确保图片在 `current_game/assets/` 或 `assets/`
+- 确保图片在 `current_game/assets/`
+- 检查策略是否启用
+- 检查是否满足前置条件
 
-**Q: 数据丢失？**
-- 运行 `python recover_data.py` 尝试恢复
+**Q: 如何打包发布？**
+- 进入 `electron/` 目录
+- 运行 `npm run build`
+- 分发生成的 .dmg 或 .exe 文件
+
+**Q: 识别算法可靠吗？**
+- 使用 OpenCV 灰度模板匹配
+- 匹配分数通常 0.8-0.95（高）
+- 支持 85%-100% 的尺寸变化
+- 详见 `RECOGNITION_ANALYSIS.md`
 
 ## 目录结构
 
@@ -113,16 +149,22 @@ smart_clicker/
 │   ├── config.json        # 当前配置
 │   └── assets/            # 当前图片资源
 │
-└── games/                 # 游戏库（备份和管理多个游戏）
-    └── 游戏名/
-        ├── config.json
-        └── assets/
+├── games/                 # 游戏库（备份和管理多个游戏）
+│   └── 游戏名/
+│       ├── config.json
+│       └── assets/
+│
+└── electron/              # Electron 打包目录
+    ├── main.js            # Electron 主进程
+    ├── index.html         # 界面
+    ├── package.json       # 打包配置
+    └── dist/              # 打包输出
 ```
 
 **说明：**
 - 所有截图和配置都保存在 `current_game/`
 - `games/` 用于备份和管理多个游戏
-- 根目录的 `config.json` 和 `assets/` 已废弃
+- `electron/` 用于打包成独立应用
 
 ## 技术栈
 
@@ -131,4 +173,5 @@ smart_clicker/
 - OpenCV (图像识别)
 - PyAutoGUI (鼠标控制)
 - MSS (屏幕截图)
+- Electron (打包)
 - EasyOCR (文字识别，可选)

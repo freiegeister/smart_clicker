@@ -1,0 +1,14 @@
+# Smart Clicker - Python 依赖
+# 安装: pip install -r requirements.txt
+
+# 图像识别
+opencv-python==4.13.0.92
+numpy==2.0.2
+
+# 屏幕截图和鼠标控制
+mss==10.1.0
+pyautogui==0.9.54
+pillow==11.3.0
+
+# GUI (仅开发环境需要)
+PySide6==6.10.2

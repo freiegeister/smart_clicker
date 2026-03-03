@@ -209,21 +209,6 @@ class MainWindow(QMainWindow):
         self.btn_capture.clicked.connect(self.start_capture)
         action_layout.addWidget(self.btn_capture)
         
-        self.btn_add_text = QPushButton("🔤 添加文字规则")
-        self.btn_add_text.setToolTip("手动输入文字，引擎会通过 OCR 识别并点击")
-        self.btn_add_text.setStyleSheet("""
-            QPushButton {
-                background-color: #5856D6; 
-                color: white; 
-                padding: 12px;
-                font-weight: bold;
-                border-radius: 6px;
-            }
-            QPushButton:hover { background-color: #4644B8; }
-        """)
-        self.btn_add_text.clicked.connect(self.add_text_rule)
-        action_layout.addWidget(self.btn_add_text)
-        
         self.btn_start = QPushButton("▶ 启动挂机引擎")
         self.btn_start.setStyleSheet("""
             QPushButton {
@@ -361,155 +346,35 @@ class MainWindow(QMainWindow):
             if not triggers and strategy.get('trigger_image'):
                 triggers.append(strategy.get('trigger_image'))
             
-            # 收集触发文字
-            trigger_texts = strategy.get('trigger_texts', [])
-                
             # 收集前置条件图片
             conditions = strategy.get('condition_images', [])
             if not conditions and strategy.get('condition_image'):
                 conditions.append(strategy.get('condition_image'))
             
-            # 收集前置条件文字
-            condition_texts = strategy.get('condition_texts', [])
-            
             # 构建显示文本
             info = f"【策略 {idx+1}】{name}\n"
             
             # 显示触发条件
-            if triggers or trigger_texts:
+            if triggers:
                 info += f"   🎯 触发条件:\n"
-                if triggers:
-                    info += f"      📷 图片 ({len(triggers)}张): {', '.join(triggers)}\n"
-                if trigger_texts:
-                    info += f"      🔤 文字 ({len(trigger_texts)}个): {', '.join(trigger_texts)}\n"
+                info += f"      📷 图片 ({len(triggers)}张): {', '.join(triggers)}\n"
             else:
-                info += f"   ⚠️ 无触发条件（请添加图片或文字）\n"
+                info += f"   ⚠️ 无触发条件（请添加图片）\n"
             
             # 显示前置条件
-            if conditions or condition_texts:
+            if conditions:
                 info += f"   🔒 前置条件:\n"
-                if conditions:
-                    info += f"      📷 图片 ({len(conditions)}张): {', '.join(conditions)}\n"
-                if condition_texts:
-                    info += f"      🔤 文字 ({len(condition_texts)}个): {', '.join(condition_texts)}\n"
+                info += f"      📷 图片 ({len(conditions)}张): {', '.join(conditions)}\n"
             else:
                 info += f"   🔓 无前置条件 (见到就点)\n"
             
             item = QListWidgetItem(info)
             # 根据是否有前置条件给点颜色区分
-            if conditions or condition_texts:
+            if conditions:
                 item.setBackground(QColor("#FFF8E1")) # 淡黄
             
             self.rule_list.addItem(item)
 
-    def add_text_rule(self):
-        """添加文字识别规则"""
-        config_path = self.get_config_path()
-        
-        if not os.path.exists(config_path):
-            QMessageBox.warning(self, "错误", "无法读取配置文件")
-            return
-        
-        try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-        except Exception as e:
-            QMessageBox.warning(self, "错误", f"无法读取配置文件: {e}")
-            return
-        
-        strategies = config.get('strategies', [])
-        if not strategies:
-            QMessageBox.warning(self, "错误", "当前没有配置任何策略")
-            return
-        
-        # 第一步：选择策略
-        strategy_names = [f"{idx+1}. {s.get('name', '未命名')}" for idx, s in enumerate(strategies)]
-        
-        strategy_choice, ok = QInputDialog.getItem(
-            self, 
-            "选择策略", 
-            "请选择要添加文字规则的策略：",
-            strategy_names, 
-            0, 
-            False
-        )
-        
-        if not ok or not strategy_choice:
-            return
-        
-        # 获取选中的策略索引
-        strategy_idx = int(strategy_choice.split('.')[0]) - 1
-        strategy = strategies[strategy_idx]
-        
-        # 第二步：选择规则类型（触发条件 or 前置条件）
-        rule_types = [
-            "🎯 触发条件（找到这个文字就点击）",
-            "🔒 前置条件（必须先满足这个条件）"
-        ]
-        
-        rule_type, ok = QInputDialog.getItem(
-            self,
-            "选择规则类型",
-            f"为策略「{strategy.get('name')}」添加文字规则：\n\n"
-            "• 触发条件：引擎找到这个文字就会点击\n"
-            "• 前置条件：必须先满足这个条件才会触发",
-            rule_types,
-            0,
-            False
-        )
-        
-        if not ok or not rule_type:
-            return
-        
-        is_trigger = "触发条件" in rule_type
-        
-        # 第三步：输入文字
-        text, ok = QInputDialog.getText(
-            self, 
-            "输入文字", 
-            "请输入要识别的文字：\n\n"
-            "提示：\n"
-            "• 支持中英文\n"
-            "• 会进行模糊匹配（如输入'关闭'可匹配'关闭广告'）\n"
-            "• 建议输入2-4个字\n"
-            "• 避免特殊符号"
-        )
-        
-        if not ok or not text.strip():
-            return
-        
-        text = text.strip()
-        
-        # 添加到配置
-        if is_trigger:
-            if 'trigger_texts' not in strategy:
-                strategy['trigger_texts'] = []
-            strategy['trigger_texts'].append(text)
-            rule_type_name = "触发条件"
-        else:
-            if 'condition_texts' not in strategy:
-                strategy['condition_texts'] = []
-            strategy['condition_texts'].append(text)
-            rule_type_name = "前置条件"
-        
-        # 保存配置
-        with open(config_path, 'w', encoding='utf-8') as f:
-            json.dump(config, f, indent=2, ensure_ascii=False)
-        
-        QMessageBox.information(
-            self, 
-            "✅ 添加成功", 
-            f"已添加文字规则\n\n"
-            f"策略：{strategy.get('name')}\n"
-            f"类型：{rule_type_name}\n"
-            f"文字：{text}\n\n"
-            f"注意：\n"
-            f"• 首次使用需要安装 easyocr\n"
-            f"• 首次运行会下载识别模型\n"
-            f"• 文字识别速度较慢（1-3秒）"
-        )
-        self.load_rules()
-    
     def start_capture(self):
         # 1. 保存当前窗口状态
         self.last_pos = self.pos()

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Clicker</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      width: 100%;
+      max-width: 560px;
+      padding: 30px;
+    }
+    
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 24px;
+      font-size: 24px;
+    }
+    
+    .log-container {
+      background: #1e1e1e;
+      border-radius: 8px;
+      padding: 16px;
+      height: 300px;
+      overflow-y: auto;
+      margin-bottom: 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    
+    .log-line {
+      color: #00ff00;
+      margin-bottom: 4px;
+    }
+    
+    .log-line.error {
+      color: #ff4444;
+    }
+    
+    .log-line.warning {
+      color: #ffaa00;
+    }
+    
+    .button-container {
+      display: flex;
+      gap: 12px;
+    }
+    
+    button {
+      flex: 1;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    #startBtn {
+      background: #34C759;
+      color: white;
+    }
+    
+    #startBtn:hover {
+      background: #248A3D;
+    }
+    
+    #startBtn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    #stopBtn {
+      background: #FF3B30;
+      color: white;
+    }
+    
+    #stopBtn:hover {
+      background: #CC2E24;
+    }
+    
+    #stopBtn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .log-container::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .log-container::-webkit-scrollbar-track {
+      background: #2a2a2a;
+      border-radius: 4px;
+    }
+    
+    .log-container::-webkit-scrollbar-thumb {
+      background: #555;
+      border-radius: 4px;
+    }
+    
+    .log-container::-webkit-scrollbar-thumb:hover {
+      background: #777;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎮 Smart Clicker</h1>
+    
+    <div class="log-container" id="logContainer">
+      <div class="log-line">准备就绪...</div>
+    </div>
+    
+    <div class="button-container">
+      <button id="startBtn">▶ 启动引擎</button>
+      <button id="stopBtn" disabled>⏹ 停止引擎</button>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+    
+    const logContainer = document.getElementById('logContainer');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    
+    let isRunning = false;
+    
+    // 添加日志
+    function addLog(message) {
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      
+      // 根据内容添加样式
+      if (message.includes('❌') || message.includes('错误') || message.includes('失败')) {
+        line.classList.add('error');
+      } else if (message.includes('⚠️') || message.includes('警告')) {
+        line.classList.add('warning');
+      }
+      
+      line.textContent = message;
+      logContainer.appendChild(line);
+      
+      // 自动滚动到底部
+      logContainer.scrollTop = logContainer.scrollHeight;
+      
+      // 限制日志行数（保留最近100行）
+      while (logContainer.children.length > 100) {
+        logContainer.removeChild(logContainer.firstChild);
+      }
+    }
+    
+    // 启动引擎
+    startBtn.addEventListener('click', () => {
+      ipcRenderer.send('start-engine');
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      isRunning = true;
+    });
+    
+    // 停止引擎
+    stopBtn.addEventListener('click', () => {
+      ipcRenderer.send('stop-engine');
+      stopBtn.disabled = true;
+    });
+    
+    // 接收日志
+    ipcRenderer.on('engine-log', (event, message) => {
+      addLog(message);
+    });
+    
+    // 引擎停止
+    ipcRenderer.on('engine-stopped', () => {
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      isRunning = false;
+    });
+  </script>
+</body>
+</html>

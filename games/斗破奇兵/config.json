@@ -19,7 +19,7 @@
       "name": "关闭前置条件",
       "description": "用于检测是否可以关闭的标志（如'奖励已发放'、'广告已完成'等），不直接点击",
       "trigger_images": [
-        "close_pre_1772125878.png"
+        "close_pre_1772461338.png"
       ],
       "trigger_texts": [],
       "action": "none",
@@ -33,7 +33,7 @@
       "name": "关闭",
       "description": "需要满足前置条件才能点击的关闭按钮（安全关闭）",
       "trigger_images": [
-        "close_1772125858.png"
+        "close_1772463552.png"
       ],
       "trigger_texts": [],
       "condition_images": [],
@@ -71,9 +71,6 @@
     "scan_interval": 1.0,
     "click_delay_min": 0.1,
     "click_delay_max": 0.3,
-    "random_offset": 5,
-    "multi_scale_search": true,
-    "edge_detection": true,
-    "ocr_enabled": true
+    "random_offset": 5
   }
 }
