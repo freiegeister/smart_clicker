@@ -31,12 +31,9 @@
         "to": "python_app",
         "filter": [
           "main.py",
-          "game_manager.py"
+          "game_manager.py",
+          "current_game/**/*"
         ]
-      },
-      {
-        "from": "../.pack_temp_斗破奇兵",
-        "to": "python_app/current_game"
       }
     ],
     "mac": {
@@ -46,9 +43,7 @@
     "win": {
       "target": {
         "target": "nsis",
-        "arch": [
-          "x64"
-        ]
+        "arch": ["x64"]
       }
     },
     "nsis": {

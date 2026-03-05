@@ -9,18 +9,31 @@ let pythonProcess = null;
 // 获取Python路径
 function getPythonPath() {
   const isDev = !app.isPackaged;
+  const isWin = process.platform === 'win32';
   
   if (isDev) {
     // 开发环境：使用项目根目录的venv
-    const venvPython = path.join(__dirname, '..', 'venv', 'bin', 'python3');
-    if (fs.existsSync(venvPython)) {
-      return venvPython;
+    if (isWin) {
+      const venvPython = path.join(__dirname, '..', 'venv', 'Scripts', 'python.exe');
+      if (fs.existsSync(venvPython)) {
+        return venvPython;
+      }
+      return 'python'; // fallback
+    } else {
+      const venvPython = path.join(__dirname, '..', 'venv', 'bin', 'python3');
+      if (fs.existsSync(venvPython)) {
+        return venvPython;
+      }
+      return 'python3'; // fallback
     }
-    return 'python3'; // fallback
   } else {
     // 打包环境：使用打包的Python
     const resourcePath = process.resourcesPath;
-    return path.join(resourcePath, 'python_app', 'venv', 'bin', 'python3');
+    if (isWin) {
+      return path.join(resourcePath, 'python_app', 'venv', 'Scripts', 'python.exe');
+    } else {
+      return path.join(resourcePath, 'python_app', 'venv', 'bin', 'python3');
+    }
   }
 }
 

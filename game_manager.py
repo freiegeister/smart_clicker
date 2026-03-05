@@ -216,18 +216,88 @@ class GameManager:
 
 
 if __name__ == "__main__":
-    # 测试代码
+    import sys
+    
     manager = GameManager()
     
-    print("=== 游戏管理器测试 ===\n")
+    # 命令行参数处理
+    if len(sys.argv) > 1:
+        command = sys.argv[1]
+        
+        if command == "list":
+            # 列出所有游戏
+            games = manager.list_games()
+            print(f"找到 {len(games)} 个游戏:")
+            for game in games:
+                print(f"  - {game['name']}")
+        
+        elif command == "export":
+            # 导出当前游戏
+            if len(sys.argv) < 3:
+                print("❌ 用法: python game_manager.py export <游戏名>")
+                sys.exit(1)
+            
+            game_name = sys.argv[2]
+            try:
+                manager.export_current_game(game_name)
+            except Exception as e:
+                print(f"❌ 导出失败: {e}")
+                sys.exit(1)
+        
+        elif command == "load":
+            # 加载游戏到 current_game
+            if len(sys.argv) < 3:
+                print("❌ 用法: python game_manager.py load <游戏名>")
+                sys.exit(1)
+            
+            game_name = sys.argv[2]
+            try:
+                manager.load_game_to_current(game_name)
+            except Exception as e:
+                print(f"❌ 加载失败: {e}")
+                sys.exit(1)
+        
+        elif command == "create":
+            # 创建新游戏
+            if len(sys.argv) < 3:
+                print("❌ 用法: python game_manager.py create <游戏名>")
+                sys.exit(1)
+            
+            game_name = sys.argv[2]
+            try:
+                game_info = manager.create_game(game_name)
+                print(f"✅ 已创建游戏: {game_info['name']}")
+                print(f"   路径: {game_info['path']}")
+            except Exception as e:
+                print(f"❌ 创建失败: {e}")
+                sys.exit(1)
+        
+        else:
+            print(f"❌ 未知命令: {command}")
+            print("\n可用命令:")
+            print("  list                    - 列出所有游戏")
+            print("  export <游戏名>         - 导出 current_game 为新游戏")
+            print("  load <游戏名>           - 加载游戏到 current_game")
+            print("  create <游戏名>         - 创建新游戏")
+            sys.exit(1)
     
-    # 列出所有游戏
-    games = manager.list_games()
-    print(f"找到 {len(games)} 个游戏:")
-    for game in games:
-        print(f"  - {game['name']}")
-    
-    print("\n当前游戏路径:")
-    paths = manager.get_current_game_paths()
-    print(f"  配置: {paths['config']}")
-    print(f"  资源: {paths['assets']}")
+    else:
+        # 无参数时显示帮助
+        print("=== 游戏管理器 ===\n")
+        print("用法: python game_manager.py <命令> [参数]\n")
+        print("命令:")
+        print("  list                    - 列出所有游戏")
+        print("  export <游戏名>         - 导出 current_game 为新游戏")
+        print("  load <游戏名>           - 加载游戏到 current_game")
+        print("  create <游戏名>         - 创建新游戏")
+        print("\n示例:")
+        print("  python game_manager.py list")
+        print("  python game_manager.py export 我的游戏")
+        print("  python game_manager.py load 斗破奇兵")
+        
+        print("\n当前状态:")
+        games = manager.list_games()
+        print(f"  游戏数量: {len(games)}")
+        paths = manager.get_current_game_paths()
+        print(f"  当前配置: {paths['config']}")
+        print(f"  当前资源: {paths['assets']}")

@@ -49,7 +49,7 @@ def load_config():
         log(f"[致命错误] 无法读取配置文件: {e}")
         return None
 
-def click_at(x, y):
+def click_at(x, y, strategy_name=""):
     """点击指定坐标（直接使用识别到的坐标）"""
     # 添加随机偏移（±3像素）
     offset_x = random.randint(-3, 3)
@@ -57,13 +57,14 @@ def click_at(x, y):
     click_x = x + offset_x
     click_y = y + offset_y
     
-    log(f"🖱️ 点击: 识别({x},{y}) -> 实际({click_x},{click_y})")
+    # 简洁输出：只显示策略名和点击坐标
+    if strategy_name:
+        print(f"✅ {strategy_name} → ({click_x},{click_y})")
     
     try:
         pyautogui.moveTo(click_x, click_y, duration=0.1)
         time.sleep(0.05)  # 短暂延迟确保鼠标移动完成
         pyautogui.click()
-        log(f"✅ 点击完成")
     except Exception as e:
         log(f"❌ 点击失败: {e}")
 
@@ -144,9 +145,11 @@ def find_image_on_screen(img_name, confidence=0.7, debug=False):
             # 计算中心点：左上角 + 缩放后尺寸的一半
             center_x = best_match[0] + best_w // 2
             center_y = best_match[1] + best_h // 2
+            # 只记录到日志文件，不输出到控制台
             log(f"✅ {img_name} | 分数:{best_val:.3f} >= 阈值:{confidence:.2f} | 坐标:({center_x},{center_y}) | 尺度:{best_scale:.2f}")
             return (center_x, center_y, best_scale)
         else:
+            # 只记录到日志文件
             if best_val > 0.5:
                 log(f"❌ {img_name} | 分数:{best_val:.3f} < 阈值:{confidence:.2f} [未达标，不点击]")
             return None
@@ -205,13 +208,14 @@ def execute_strategy(strategy):
                 break
     
     if found_location:
+        # 只记录到日志文件
         log(f"[执行] {name}")
         if action == 'click_target':
-            click_at(found_location[0], found_location[1])
+            click_at(found_location[0], found_location[1], strategy_name=name)
         elif action == 'click_fixed':
             coords = strategy.get('fixed_coords', [0, 0])
             # fixed_coords 应该已经是物理坐标
-            click_at(coords[0], coords[1])
+            click_at(coords[0], coords[1], strategy_name=name)
         
         if post_delay > 0:
             random_sleep(post_delay)
@@ -229,6 +233,7 @@ def check_precondition_exists(strategies):
             for img in triggers:
                 res = find_image_on_screen(img, confidence=confidence)
                 if res:
+                    # 只记录到日志文件
                     log(f"[前置检测] {img}")
                     return True
     
@@ -236,24 +241,22 @@ def check_precondition_exists(strategies):
 
 def main():
     """主循环"""
-    log("=" * 60)
-    log("🚀 Smart Clicker 引擎启动")
-    log("=" * 60)
+    print("🚀 引擎启动")
+    print("🔄 开始监控...")
 
     config = load_config()
     if not config:
-        log("❌ 无法加载配置文件")
+        print("❌ 无法加载配置文件")
         return
 
     strategies = config.get('strategies', [])
     if not strategies:
-        log("⚠️  配置中没有策略")
+        print("⚠️  配置中没有策略")
         return
 
     # 显示已启用的策略数量
     enabled_count = len([s for s in strategies if s.get('enabled', True)])
-    log(f"📋 已加载 {enabled_count} 个策略")
-    log("🔄 开始监控...\n")
+    print(f"📋 已加载 {enabled_count} 个策略")
 
     # 策略执行顺序
     strategy_order = ['干扰弹窗', '关闭后置条件', '关闭', '打开']
@@ -268,7 +271,7 @@ def main():
         while True:
             # 检查停止标志
             if STOP_FLAG:
-                log("\n⏹ 收到停止信号")
+                print("⏹ 收到停止信号")
                 break
 
             scan_count += 1
@@ -312,7 +315,7 @@ def main():
             # 检查空闲超时
             idle_time = time.time() - last_action_time
             if idle_timeout > 0 and idle_time > idle_timeout:
-                log(f"\n⏰ 空闲超时 ({idle_timeout}秒)")
+                print(f"⏰ 空闲超时 ({idle_timeout}秒)")
                 break
 
             # 可中断的扫描间隔
@@ -324,15 +327,13 @@ def main():
                 sleep_time += 0.1
 
     except KeyboardInterrupt:
-        log("\n⚠️  用户中断")
+        print("⚠️  用户中断")
     except Exception as e:
-        log(f"\n❌ 引擎异常: {e}")
+        print(f"❌ 引擎异常: {e}")
         import traceback
         traceback.print_exc()
     finally:
-        log("\n" + "=" * 60)
-        log("🛑 引擎已停止")
-        log("=" * 60)
+        print("🛑 引擎已停止")
 
 if __name__ == "__main__":
     main()
