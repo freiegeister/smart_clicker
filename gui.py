@@ -3,6 +3,7 @@ import os
 import json
 import shutil
 import time
+import platform
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QPushButton, QLabel, QListWidget, 
                              QMessageBox, QListWidgetItem, QInputDialog, QComboBox,
@@ -10,8 +11,9 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QColor
 
-import main as engine
-from snipper import SnippingTool
+# 延迟导入重量级模块，加快启动速度
+# import main as engine  # 延迟到需要时再导入
+# from snipper import SnippingTool  # 延迟到需要时再导入
 from game_manager import GameManager
 
 # 检测开发者模式
@@ -29,6 +31,9 @@ class WorkThread(QThread):
     def run(self):
         self.log_signal.emit("🚀 引擎启动中...")
         try:
+            # 延迟导入 engine，避免启动时加载
+            import main as engine
+            
             # 设置游戏路径
             engine.set_game_paths(self.config_path, self.assets_path)
             
@@ -72,6 +77,8 @@ class WorkThread(QThread):
 
     def stop(self):
         """优雅停止线程"""
+        import main as engine
+        
         self.running = False
         engine.STOP_FLAG = True
         self.log_signal.emit("⏹ 正在停止引擎...")
@@ -227,6 +234,65 @@ class MainWindow(QMainWindow):
         
         self.worker = None
         self.load_rules()
+        
+        # macOS 权限检查（在界面初始化完成后）
+        if platform.system() == 'Darwin':
+            self.check_screen_recording_permission()
+    
+    def check_screen_recording_permission(self):
+        """检查 macOS 屏幕录制权限"""
+        try:
+            from PySide6.QtGui import QGuiApplication
+            
+            self.update_status("🔍 正在检查屏幕录制权限...")
+            
+            # 尝试抓取屏幕来测试权限
+            screen = QGuiApplication.primaryScreen()
+            test_screenshot = screen.grabWindow(0)
+            
+            # 如果截图为空或尺寸异常小，说明没有权限
+            if test_screenshot.isNull() or test_screenshot.width() < 100:
+                self.update_status("❌ 屏幕录制权限未授予 - 截图功能将无法使用")
+                self.show_permission_dialog()
+            else:
+                self.update_status(f"✅ 屏幕录制权限已授予 (截图尺寸: {test_screenshot.width()}x{test_screenshot.height()})")
+        except Exception as e:
+            self.update_status(f"⚠️ 权限检查失败: {e}")
+            print(f"[DEBUG] 权限检查失败: {e}")
+    
+    def show_permission_dialog(self):
+        """显示权限提示对话框"""
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Warning)
+        msg.setWindowTitle("⚠️ 需要屏幕录制权限")
+        msg.setText(
+            "截图功能需要屏幕录制权限\n\n"
+            "请按以下步骤操作：\n"
+            "1. 打开「系统偏好设置」\n"
+            "2. 进入「安全性与隐私」\n"
+            "3. 选择「隐私」标签\n"
+            "4. 点击左侧「屏幕录制」\n"
+            "5. 勾选本应用\n"
+            "6. 重启本应用"
+        )
+        msg.setStandardButtons(QMessageBox.Ok)
+        
+        # 添加"打开系统设置"按钮
+        open_settings_btn = msg.addButton("打开系统设置", QMessageBox.ActionRole)
+        
+        msg.exec()
+        
+        # 如果点击了"打开系统设置"
+        if msg.clickedButton() == open_settings_btn:
+            import subprocess
+            try:
+                # macOS 打开隐私设置
+                subprocess.run([
+                    'open',
+                    'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
+                ])
+            except Exception as e:
+                print(f"[DEBUG] 无法打开系统设置: {e}")
     
     def load_game_list(self):
         """加载游戏列表"""
@@ -247,11 +313,19 @@ class MainWindow(QMainWindow):
         
         if game_name == "默认配置":
             self.current_game = None
+            self.load_rules()
+            self.update_status(f"已切换到: {game_name}")
         else:
-            self.current_game = game_name
-        
-        self.load_rules()
-        self.update_status(f"已切换到: {game_name}")
+            # 加载游戏到 current_game
+            try:
+                self.update_status(f"正在加载游戏: {game_name}...")
+                self.game_manager.load_game_to_current(game_name)
+                self.current_game = game_name
+                self.load_rules()
+                self.update_status(f"✅ 已切换到: {game_name}")
+            except Exception as e:
+                QMessageBox.warning(self, "加载失败", f"无法加载游戏: {str(e)}")
+                self.update_status(f"❌ 加载失败: {e}")
     
     def create_new_game(self):
         """创建新游戏配置"""
@@ -376,36 +450,133 @@ class MainWindow(QMainWindow):
             self.rule_list.addItem(item)
 
     def start_capture(self):
-        # 1. 保存当前窗口状态
-        self.last_pos = self.pos()
-        self.last_size = self.size()
-        
-        # 2. 隐藏主窗口
-        self.hide()
-        
-        # 3. 启动截图工具
-        # 注意：snipper 实例必须作为成员变量持有，否则会被垃圾回收导致窗口闪退
-        self.snipper = SnippingTool()
-        self.snipper.captured.connect(self.on_captured)
-        self.snipper.destroyed.connect(self.on_snipper_closed) # 监听关闭事件
-        self.snipper.show()
+        """启动截图 - 跨平台支持，增强权限检测"""
+        import subprocess
+        import tempfile
+
+        temp_file = os.path.join(tempfile.gettempdir(), f"screenshot_{int(time.time())}.png")
+
+        try:
+            if platform.system() == 'Darwin':
+                # macOS: 使用 screencapture，添加 -x 禁用声音
+                result = subprocess.run(
+                    ['screencapture', '-x', '-i', temp_file],
+                    capture_output=True,
+                    text=True
+                )
+
+                # 检查截图是否成功
+                if not os.path.exists(temp_file) or os.path.getsize(temp_file) == 0:
+                    QMessageBox.warning(
+                        self,
+                        "截图失败",
+                        "截图失败，可能原因：\n\n"
+                        "1. 您取消了截图\n"
+                        "2. 没有屏幕录制权限\n\n"
+                        "如需截取游戏窗口，请确保：\n"
+                        "• 系统偏好设置 → 安全性与隐私 → 隐私 → 屏幕录制\n"
+                        "• 勾选本应用或 Python/Terminal\n"
+                        "• 重启应用"
+                    )
+                    try:
+                        os.remove(temp_file)
+                    except:
+                        pass
+                    return
+
+            elif platform.system() == 'Windows':
+                # Windows: 使用自定义截图工具
+                from snipper import SnippingTool
+                from PySide6.QtGui import QGuiApplication
+
+                screen = QGuiApplication.primaryScreen()
+                screenshot = screen.grabWindow(0)
+
+                if screenshot.isNull():
+                    QMessageBox.warning(self, "错误", "无法抓取屏幕")
+                    return
+
+                self.snipper = SnippingTool(screenshot)
+                self.snipper.captured.connect(self.on_captured)
+                self.snipper.closed_signal.connect(lambda: None)
+                self.snipper.show()
+                return
+            else:
+                # Linux: 使用 gnome-screenshot 或 scrot
+                try:
+                    subprocess.run(['gnome-screenshot', '-a', '-f', temp_file], check=True)
+                except:
+                    try:
+                        subprocess.run(['scrot', '-s', temp_file], check=True)
+                    except:
+                        QMessageBox.warning(
+                            self, 
+                            "不支持", 
+                            "请安装 gnome-screenshot 或 scrot"
+                        )
+                        return
+
+            # 检查文件是否存在且有内容
+            if os.path.exists(temp_file) and os.path.getsize(temp_file) > 0:
+                # 打开编辑器预览
+                from snipper import ImageEditor
+                from PySide6.QtGui import QPixmap, QGuiApplication
+
+                pixmap = QPixmap(temp_file)
+                if not pixmap.isNull():
+                    # 检测 Retina 屏幕并设置正确的 DPR
+                    screen = QGuiApplication.primaryScreen()
+                    device_pixel_ratio = screen.devicePixelRatio()
+                    
+                    # 如果是 Retina 屏幕（DPR >= 2），设置 pixmap 的 DPR
+                    if device_pixel_ratio >= 2.0:
+                        pixmap.setDevicePixelRatio(device_pixel_ratio)
+                        print(f"[DEBUG] 检测到 Retina 屏幕，DPR={device_pixel_ratio}")
+                    
+                    editor = ImageEditor(pixmap, self)
+                    editor.finished.connect(self.on_editor_finished)
+                    editor.exec()
+                else:
+                    QMessageBox.warning(self, "错误", "无法加载截图")
+                    try:
+                        os.remove(temp_file)
+                    except:
+                        pass
+
+        except Exception as e:
+            QMessageBox.warning(self, "截图失败", f"截图失败: {str(e)}")
+
+    def on_editor_finished(self, temp_path):
+        """编辑器完成后的回调"""
+        self.on_captured(temp_path)
+
+    def on_editor_finished(self, temp_path):
+        """编辑器完成后的回调"""
+        self.on_captured(temp_path)
+
+    def on_editor_finished(self, temp_path):
+        """编辑器完成后的回调"""
+        self.on_captured(temp_path)
+
+    def on_editor_finished(self, temp_path):
+        """编辑器完成后的回调"""
+        self.on_captured(temp_path)
+
 
     def on_snipper_closed(self):
-        # 只有当窗口真的关闭且没有触发 captured 时（例如按ESC），才需要这里兜底显示
-        # 但由于 captured 信号发射后也会 close，为了避免重复 show，我们在 captured 里处理逻辑
-        if self.isHidden():
-            self.restore_window()
+        # 截图工具关闭时（无论是 ESC 还是完成截图），都恢复窗口
+        self.restore_window()
 
     def restore_window(self):
         self.showNormal() # 强制恢复正常状态，防止全屏残留
-        self.activateWindow()
+        self.raise_()  # 将窗口提到最前
+        self.activateWindow()  # 激活窗口
         if self.last_pos:
             self.move(self.last_pos)
             self.resize(self.last_size)
 
     def on_captured(self, temp_path):
-        self.restore_window()
-        
+        # 截图完成
         if not os.path.exists(temp_path):
             return
 
@@ -413,11 +584,11 @@ class MainWindow(QMainWindow):
         options = [
             "🔴 干扰弹窗（最高优先级，见到就点）",
             "🟡 关闭前置条件（检测标志，不点击）",
-            "� 关闭按钮（需要前置条件）",
-            "� 关闭后置条件（二次确认）",
+            "🟠 关闭按钮（需要前置条件）",
+            "🟣 关闭后置条件（二次确认）",
             "🔵 打开按钮（主动点击）"
         ]
-        
+
         item, ok = QInputDialog.getItem(self, "素材归档", 
                                       "请选择这张图片的作用：\n\n"
                                       "• 干扰弹窗：见到就点，优先级最高\n"
@@ -427,12 +598,12 @@ class MainWindow(QMainWindow):
                                       "• 打开按钮：主动观看广告、领取奖励", 
                                       options, 
                                       0, False)
-        
+
         if ok and item:
             timestamp = int(time.time())
             new_filename = ""
             role = ""
-            
+
             if "干扰弹窗" in item:
                 new_filename = f"popup_{timestamp}.png"
                 role = "popup"
@@ -448,18 +619,20 @@ class MainWindow(QMainWindow):
             elif "打开按钮" in item:
                 new_filename = f"open_{timestamp}.png"
                 role = "open"
-                
+
             target_path = os.path.join(self.get_assets_dir(), new_filename)
             os.makedirs(self.get_assets_dir(), exist_ok=True)
             shutil.move(temp_path, target_path)
-            
+
             self.add_image_to_config(role, new_filename)
-            
+
             QMessageBox.information(self, "✅ 添加成功", f"已归档为: {new_filename}\n规则已更新，下次启动生效。")
             self.load_rules()
         else:
-            try: os.remove(temp_path)
-            except: pass
+            try: 
+                os.remove(temp_path)
+            except: 
+                pass
 
     def add_image_to_config(self, role, filename):
         config_path = self.get_config_path()
@@ -681,7 +854,8 @@ class MainWindow(QMainWindow):
             "此操作将：\n"
             "1. 清空当前所有规则\n"
             "2. 恢复到默认模板\n"
-            "3. 不会删除资源文件夹中的截图\n\n"
+            "3. 清空资源文件夹中的所有截图\n\n"
+            "⚠️ 截图将被永久删除！\n\n"
             "是否继续？",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
@@ -690,6 +864,7 @@ class MainWindow(QMainWindow):
         if reply == QMessageBox.Yes:
             try:
                 config_path = self.get_config_path()
+                assets_dir = self.get_assets_dir()
                 
                 # 备份当前配置
                 if os.path.exists(config_path):
@@ -697,6 +872,20 @@ class MainWindow(QMainWindow):
                     backup_path = os.path.join(os.path.dirname(config_path), backup_name)
                     shutil.copy(config_path, backup_path)
                     self.update_status(f"📦 已备份当前配置到: {backup_name}")
+                
+                # 清空 assets 文件夹
+                if os.path.exists(assets_dir):
+                    deleted_count = 0
+                    for filename in os.listdir(assets_dir):
+                        file_path = os.path.join(assets_dir, filename)
+                        if os.path.isfile(file_path) and filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+                            try:
+                                os.remove(file_path)
+                                deleted_count += 1
+                            except Exception as e:
+                                print(f"[DEBUG] 删除文件失败 {filename}: {e}")
+                    
+                    self.update_status(f"🗑️ 已删除 {deleted_count} 个截图文件")
                 
                 # 复制默认配置
                 if os.path.exists("config_default.json"):
@@ -707,8 +896,9 @@ class MainWindow(QMainWindow):
                         self, 
                         "✅ 还原成功", 
                         f"已还原到默认配置！\n\n"
-                        f"原配置已备份为: {backup_name}\n"
-                        f"如需恢复，可手动重命名该文件。"
+                        f"• 配置已备份为: {backup_name}\n"
+                        f"• 已删除 {deleted_count} 个截图文件\n\n"
+                        f"如需恢复配置，可手动重命名备份文件。"
                     )
                 else:
                     QMessageBox.warning(

@@ -33,8 +33,19 @@ class ImageEditor(QDialog):
         
         print(f"[DEBUG] 窗口位置: ({self.x()}, {self.y()}), 尺寸: {self.width()}x{self.height()}")
         
-        # 原始数据
+        # 原始数据 - 处理 DPI 缩放
         self.original_pixmap = original_pixmap
+        # 设置正确的 devicePixelRatio
+        if self.original_pixmap.devicePixelRatio() == 1.0:
+            # 检测是否是 Retina 截图（尺寸异常大）
+            screen_geo = QGuiApplication.primaryScreen().geometry()
+            if self.original_pixmap.width() > screen_geo.width() * 1.5:
+                # 可能是 Retina 截图，设置 DPR 为 2
+                self.original_pixmap.setDevicePixelRatio(2.0)
+                print(f"[DEBUG] 检测到 Retina 截图，设置 DPR=2")
+        
+        print(f"[DEBUG] 截图尺寸: {self.original_pixmap.width()}x{self.original_pixmap.height()}, DPR: {self.original_pixmap.devicePixelRatio()}")
+        
         self.current_image = self.original_pixmap.toImage()
         self.current_image = self.current_image.convertToFormat(QImage.Format_ARGB32)
         
@@ -423,7 +434,24 @@ class ImageEditor(QDialog):
         import tempfile
         temp_dir = tempfile.gettempdir()
         save_path = os.path.join(temp_dir, "temp_capture_result.png")
-        success = self.current_image.save(save_path)
+        
+        # 检查是否是 Retina 截图（需要缩小到 50%）
+        image_to_save = self.current_image
+        
+        # 如果原始 pixmap 的 DPR 是 2.0，说明是 Retina 截图
+        if self.original_pixmap.devicePixelRatio() >= 2.0:
+            # 缩小到 50%
+            scaled_width = image_to_save.width() // 2
+            scaled_height = image_to_save.height() // 2
+            image_to_save = image_to_save.scaled(
+                scaled_width, 
+                scaled_height, 
+                Qt.KeepAspectRatio, 
+                Qt.SmoothTransformation
+            )
+            print(f"[DEBUG] Retina 截图已缩小: {self.current_image.width()}x{self.current_image.height()} → {scaled_width}x{scaled_height}")
+        
+        success = image_to_save.save(save_path)
         if success:
             print(f"[DEBUG] 图片已保存: {save_path}")
             self.finished.emit(save_path)
@@ -435,29 +463,47 @@ class ImageEditor(QDialog):
 
 class SnippingTool(QWidget):
     captured = Signal(str) # 信号：流程结束，返回最终路径
+    closed_signal = Signal() # 信号：窗口关闭
 
-    def __init__(self):
+    def __init__(self, screenshot=None):
         super().__init__()
+        print(f"[DEBUG] SnippingTool 初始化，screenshot: {screenshot is not None}")
+        
         # 设置无边框、顶层、全屏
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        # 移除 Qt.Tool 标志，避免隐藏其他窗口
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
+        
+        # 确保窗口能接收键盘事件
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.setFocus()
+        
         # 使用 showFullScreen 可能会导致某些平台退出时状态混乱，setGeometry 更稳
         screen = QGuiApplication.primaryScreen()
         rect = screen.geometry()
         self.setGeometry(rect)
         
+        print(f"[DEBUG] 窗口几何: {rect}")
+        
         self.start_point = None
         self.end_point = None
         self.is_snipping = False
         
-        # 抓取当前屏幕
-        self.original_pixmap = screen.grabWindow(0)
+        # 使用传入的截图，如果没有则抓取当前屏幕
+        if screenshot is not None:
+            self.original_pixmap = screenshot
+            print(f"[DEBUG] 使用传入截图: {screenshot.width()}x{screenshot.height()}")
+        else:
+            self.original_pixmap = screen.grabWindow(0)
+            print(f"[DEBUG] 抓取屏幕: {self.original_pixmap.width()}x{self.original_pixmap.height()}")
         
         # 遮罩颜色
         self.mask_color = QColor(0, 0, 0, 100)
         
         # 设置鼠标
         self.setCursor(Qt.CrossCursor)
+        
+        print("[DEBUG] SnippingTool 初始化完成")
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -483,9 +529,18 @@ class SnippingTool(QWidget):
             painter.drawText(rect.topLeft() - QPoint(0, 5), info)
 
     def keyPressEvent(self, event):
-        # ESC 退出
+        # ESC 退出 - 最高优先级
         if event.key() == Qt.Key_Escape:
+            print("[DEBUG] ESC pressed, closing snipper")
+            self.closed_signal.emit()
             self.close()
+            event.accept()
+        # Q 键也可以退出
+        elif event.key() == Qt.Key_Q:
+            print("[DEBUG] Q pressed, closing snipper")
+            self.closed_signal.emit()
+            self.close()
+            event.accept()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -543,6 +598,11 @@ class SnippingTool(QWidget):
 
     def on_editor_finished(self, path):
         self.captured.emit(path)
+    
+    def closeEvent(self, event):
+        """窗口关闭时发送信号"""
+        self.closed_signal.emit()
+        super().closeEvent(event)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

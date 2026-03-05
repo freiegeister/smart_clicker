@@ -8,6 +8,10 @@ import json
 import datetime
 import mss
 
+# 配置 pyautogui
+pyautogui.PAUSE = 0.05  # 每次操作后的暂停时间
+pyautogui.FAILSAFE = False  # 禁用鼠标移到角落停止的功能
+
 # 基础配置
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_FILE = os.path.join(BASE_DIR, "debug.log")
@@ -50,42 +54,71 @@ def load_config():
         return None
 
 def click_at(x, y, strategy_name=""):
-    """点击指定坐标（直接使用识别到的坐标）"""
+    """点击指定坐标（使用多种方式确保点击成功）"""
     # 添加随机偏移（±3像素）
     offset_x = random.randint(-3, 3)
     offset_y = random.randint(-3, 3)
     click_x = x + offset_x
     click_y = y + offset_y
     
-    # 简洁输出：只显示策略名和点击坐标
-    if strategy_name:
-        print(f"✅ {strategy_name} → ({click_x},{click_y})")
+    # 详细输出：显示策略名和点击坐标
+    msg = f"✅ {strategy_name} → ({click_x},{click_y})"
+    print(msg)
+    log(msg)
     
     try:
-        pyautogui.moveTo(click_x, click_y, duration=0.1)
-        time.sleep(0.05)  # 短暂延迟确保鼠标移动完成
-        pyautogui.click()
+        # 方案1：pyautogui (快速但可能被拦截)
+        pyautogui.moveTo(click_x, click_y, duration=0.15)
+        time.sleep(0.1)
+        
+        # 使用 mouseDown + mouseUp 代替 click
+        pyautogui.mouseDown()
+        time.sleep(0.05)
+        pyautogui.mouseUp()
+        
+        log(f"[点击] 点击完成")
+        
     except Exception as e:
-        log(f"❌ 点击失败: {e}")
+        # 方案2：macOS 系统命令 (备用，更可靠但较慢)
+        try:
+            import subprocess
+            import platform
+            
+            if platform.system() == 'Darwin':
+                log(f"[点击] pyautogui 失败，尝试 cliclick")
+                # 使用 cliclick (需要安装: brew install cliclick)
+                subprocess.run(['cliclick', 'c:' + str(click_x) + ',' + str(click_y)], 
+                             check=False, capture_output=True)
+                log(f"[点击] cliclick 完成")
+            else:
+                raise e
+        except:
+            error_msg = f"❌ 点击失败: {e}"
+            print(error_msg)
+            log(error_msg)
+            import traceback
+            log(traceback.format_exc())
 
-def find_image_on_screen(img_name, confidence=0.7, debug=False):
+def find_image_on_screen(img_name, confidence=0.7, debug=False, screen_cache=None):
     """
-    简化识别逻辑 - 纯灰度模板匹配
-    高效、准确、分数高（0.8-0.95）
+    高性能识别逻辑 - 使用缓存的截图，单尺度匹配
     """
     img_path = os.path.join(ASSETS_DIR, img_name)
     if not os.path.exists(img_path):
         return None
 
     try:
-        # 1. 屏幕截图
-        with mss.mss() as sct:
-            monitor = sct.monitors[1]
-            sct_img = sct.grab(monitor)
-            screen_bgra = np.array(sct_img)
-            screen_bgr = cv2.cvtColor(screen_bgra, cv2.COLOR_BGRA2BGR)
+        # 使用缓存的截图，避免重复截屏
+        if screen_cache is None:
+            with mss.mss() as sct:
+                monitor = sct.monitors[1]
+                sct_img = sct.grab(monitor)
+                screen_bgra = np.array(sct_img)
+                screen_bgr = cv2.cvtColor(screen_bgra, cv2.COLOR_BGRA2BGR)
+        else:
+            screen_bgr = screen_cache
 
-        # 2. 读取模板
+        # 读取模板（考虑添加缓存）
         template_raw = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
         if template_raw is None:
             return None
@@ -100,66 +133,33 @@ def find_image_on_screen(img_name, confidence=0.7, debug=False):
         template_gray = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY)
         screen_gray = cv2.cvtColor(screen_bgr, cv2.COLOR_BGR2GRAY)
 
-        # 多尺度搜索
-        scales = [1.0, 0.95, 0.9, 0.85]
-        
-        best_val = 0.0
-        best_match = None
-        best_scale = 1.0
-        best_w, best_h = 0, 0
-        
-        # 保存原始模板尺寸
+        # 单尺度匹配 - 最快
         orig_h, orig_w = template_gray.shape[:2]
+        
+        # 检查尺寸
+        if orig_w > screen_gray.shape[1] or orig_h > screen_gray.shape[0]:
+            return None
 
-        for scale in scales:
-            width = int(orig_w * scale)
-            height = int(orig_h * scale)
-            
-            if width < 10 or height < 10:
-                continue
-            if width > screen_bgr.shape[1] or height > screen_bgr.shape[0]:
-                continue
-
-            # 缩放模板
-            if scale == 1.0:
-                curr_template = template_gray
-            else:
-                curr_template = cv2.resize(template_gray, (width, height))
-
-            # 灰度模板匹配
-            try:
-                res = cv2.matchTemplate(screen_gray, curr_template, cv2.TM_CCOEFF_NORMED)
-                _, max_val, _, max_loc = cv2.minMaxLoc(res)
-                
-                if max_val > best_val:
-                    best_val = max_val
-                    best_match = max_loc
-                    best_scale = scale
-                    # 保存缩放后的尺寸（用于计算中心点）
-                    best_h, best_w = height, width
-            except:
-                continue
-
-        # 严格使用配置的阈值
-        if best_val >= confidence:
-            # 计算中心点：左上角 + 缩放后尺寸的一半
-            center_x = best_match[0] + best_w // 2
-            center_y = best_match[1] + best_h // 2
-            # 只记录到日志文件，不输出到控制台
-            log(f"✅ {img_name} | 分数:{best_val:.3f} >= 阈值:{confidence:.2f} | 坐标:({center_x},{center_y}) | 尺度:{best_scale:.2f}")
-            return (center_x, center_y, best_scale)
+        # 模板匹配
+        res = cv2.matchTemplate(screen_gray, template_gray, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, max_loc = cv2.minMaxLoc(res)
+        
+        if max_val >= confidence:
+            center_x = max_loc[0] + orig_w // 2
+            center_y = max_loc[1] + orig_h // 2
+            log(f"✅ {img_name} | 分数:{max_val:.3f} | 坐标:({center_x},{center_y})")
+            return (center_x, center_y, 1.0)
         else:
-            # 只记录到日志文件
-            if best_val > 0.5:
-                log(f"❌ {img_name} | 分数:{best_val:.3f} < 阈值:{confidence:.2f} [未达标，不点击]")
+            if max_val > 0.5:
+                log(f"❌ {img_name} | 分数:{max_val:.3f} < 阈值:{confidence:.2f}")
             return None
             
     except Exception as e:
         log(f"[错误] {img_name}: {e}")
         return None
 
-def execute_strategy(strategy):
-    """执行策略"""
+def execute_strategy(strategy, screen_cache=None):
+    """执行策略 - 使用缓存的截图"""
     action = strategy.get('action', 'click_target')
     confidence = strategy.get('confidence', 0.7)
     post_delay = strategy.get('post_delay', 1)
@@ -188,7 +188,7 @@ def execute_strategy(strategy):
         
         # 检查图片前置条件
         for c_img in conditions:
-            res = find_image_on_screen(c_img, confidence=confidence)
+            res = find_image_on_screen(c_img, confidence=confidence, screen_cache=screen_cache)
             if res:
                 condition_met = True
                 log(f"[前置条件] {c_img}")
@@ -202,19 +202,17 @@ def execute_strategy(strategy):
     # 尝试图片匹配
     if triggers:
         for img_name in triggers:
-            res = find_image_on_screen(img_name, confidence=confidence)
+            res = find_image_on_screen(img_name, confidence=confidence, screen_cache=screen_cache)
             if res:
                 found_location = (res[0], res[1])
                 break
     
     if found_location:
-        # 只记录到日志文件
         log(f"[执行] {name}")
         if action == 'click_target':
             click_at(found_location[0], found_location[1], strategy_name=name)
         elif action == 'click_fixed':
             coords = strategy.get('fixed_coords', [0, 0])
-            # fixed_coords 应该已经是物理坐标
             click_at(coords[0], coords[1], strategy_name=name)
         
         if post_delay > 0:
@@ -223,25 +221,37 @@ def execute_strategy(strategy):
             
     return False
 
-def check_precondition_exists(strategies):
-    """检查是否存在"关闭前置条件"标志"""
+def check_precondition_exists(strategies, screen_cache=None):
+    """检查是否存在"关闭前置条件"标志 - 使用缓存的截图"""
     for strategy in strategies:
         if strategy.get('name') == '关闭前置条件' and strategy.get('enabled', True):
             triggers = strategy.get('trigger_images', [])
             confidence = strategy.get('confidence', 0.7)
             
             for img in triggers:
-                res = find_image_on_screen(img, confidence=confidence)
+                res = find_image_on_screen(img, confidence=confidence, screen_cache=screen_cache)
                 if res:
-                    # 只记录到日志文件
                     log(f"[前置检测] {img}")
                     return True
     
     return False
 
 def main():
-    """主循环"""
+    """主循环 - 高性能版本"""
     print("🚀 引擎启动")
+    
+    # macOS 权限检查
+    if os.uname().sysname == 'Darwin':
+        try:
+            # 测试是否有辅助功能权限
+            test_pos = pyautogui.position()
+            print(f"✅ 辅助功能权限正常，当前鼠标位置: {test_pos}")
+        except Exception as e:
+            print(f"⚠️  警告：可能缺少辅助功能权限")
+            print(f"   错误: {e}")
+            print(f"   请在「系统偏好设置 → 安全性与隐私 → 隐私 → 辅助功能」中")
+            print(f"   勾选 Terminal 或 Python")
+    
     print("🔄 开始监控...")
 
     config = load_config()
@@ -265,7 +275,10 @@ def main():
     last_action_time = time.time()
     last_close_time = 0
     idle_timeout = config.get('settings', {}).get('idle_timeout', 300)
-    scan_interval = config.get('settings', {}).get('scan_interval', 1)
+    scan_interval = config.get('settings', {}).get('scan_interval', 2.0)
+
+    # 初始化 mss 实例（复用，避免重复创建）
+    sct = mss.mss()
 
     try:
         while True:
@@ -275,6 +288,12 @@ def main():
                 break
 
             scan_count += 1
+
+            # 关键优化：每次扫描只截图一次
+            monitor = sct.monitors[1]
+            sct_img = sct.grab(monitor)
+            screen_bgra = np.array(sct_img)
+            screen_cache = cv2.cvtColor(screen_bgra, cv2.COLOR_BGRA2BGR)
 
             # 按优先级执行策略
             action_taken = False
@@ -286,8 +305,7 @@ def main():
                         if priority_name == '关闭':
                             conditions = strategy.get('condition_images', [])
                             if not conditions:
-                                # 如果没有配置 condition_images，检查是否存在前置条件标志
-                                precondition_met = check_precondition_exists(strategies)
+                                precondition_met = check_precondition_exists(strategies, screen_cache)
                                 if not precondition_met:
                                     log(f"[跳过] 关闭策略 - 前置条件未满足")
                                     continue
@@ -299,7 +317,7 @@ def main():
                             if time.time() - last_close_time > 3:
                                 continue
 
-                        if execute_strategy(strategy):
+                        if execute_strategy(strategy, screen_cache):
                             action_taken = True
                             last_action_time = time.time()
 
@@ -333,6 +351,7 @@ def main():
         import traceback
         traceback.print_exc()
     finally:
+        sct.close()  # 关闭 mss 实例
         print("🛑 引擎已停止")
 
 if __name__ == "__main__":

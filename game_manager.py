@@ -26,13 +26,16 @@ class GameManager:
         # 当前游戏目录（打包时使用）
         self.current_game_dir = os.path.join(self.base_dir, "current_game")
         
-        # 确保目录存在
-        os.makedirs(self.external_games_dir, exist_ok=True)
-        os.makedirs(self.current_game_dir, exist_ok=True)
+        # 延迟创建目录，只在需要时创建
+        # os.makedirs(self.external_games_dir, exist_ok=True)
+        # os.makedirs(self.current_game_dir, exist_ok=True)
     
     def list_games(self):
         """列出所有可用的游戏"""
         games = []
+        
+        # 确保目录存在
+        os.makedirs(self.external_games_dir, exist_ok=True)
         
         # 扫描外部游戏目录
         if os.path.exists(self.external_games_dir):
@@ -65,6 +68,9 @@ class GameManager:
     
     def create_game(self, game_name):
         """创建新游戏配置"""
+        # 确保目录存在
+        os.makedirs(self.external_games_dir, exist_ok=True)
+        
         game_path = os.path.join(self.external_games_dir, game_name)
         
         if os.path.exists(game_path):
@@ -125,10 +131,12 @@ class GameManager:
                 print(f"⚠️  检测到 current_game 有内容，备份到: {backup_dir}")
                 shutil.copytree(self.current_game_dir, backup_dir)
             
-            # 清空 current_game 目录
+            # 完全删除 current_game 目录（包括所有图片）
             shutil.rmtree(self.current_game_dir)
         
+        # 重新创建空目录
         os.makedirs(self.current_game_dir, exist_ok=True)
+        os.makedirs(os.path.join(self.current_game_dir, "assets"), exist_ok=True)
         
         # 复制配置文件
         if os.path.exists(game_info['config']):
@@ -137,16 +145,21 @@ class GameManager:
         else:
             print(f"⚠️  警告: 游戏配置文件不存在")
         
-        # 复制资源目录
+        # 复制资源目录（只复制图片文件）
         if os.path.exists(game_info['assets']):
-            if os.listdir(game_info['assets']):  # 只有非空才复制
-                shutil.copytree(game_info['assets'], 
-                              os.path.join(self.current_game_dir, "assets"))
-            else:
-                os.makedirs(os.path.join(self.current_game_dir, "assets"), exist_ok=True)
-                print(f"⚠️  警告: 游戏资源目录为空")
+            target_assets = os.path.join(self.current_game_dir, "assets")
+            copied_count = 0
+            
+            for filename in os.listdir(game_info['assets']):
+                if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    src = os.path.join(game_info['assets'], filename)
+                    dst = os.path.join(target_assets, filename)
+                    shutil.copy(src, dst)
+                    copied_count += 1
+            
+            print(f"✅ 已复制 {copied_count} 个图片文件")
         else:
-            os.makedirs(os.path.join(self.current_game_dir, "assets"), exist_ok=True)
+            print(f"⚠️  警告: 游戏资源目录不存在")
         
         print(f"✅ 已加载游戏 {game_name} 到 current_game/")
         print(f"   配置: current_game/config.json")
