@@ -4,6 +4,7 @@ venv-*
 .venv/
 .*
 
+
 # Python 缓存
 __pycache__/
 *.pyc
@@ -16,8 +17,10 @@ debug*.png
 temp_*.png
 preview_*.png
 
-# 工作目录（当前游戏）
-current_game
+games/
+
+setup.*
+
 
 # 打包输出
 dist/
