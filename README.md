@@ -5,6 +5,11 @@
 ## 快速开始
 
 ### 开发环境
+创建虚拟环境
+```
+python3 -m venv ./venv
+source venv/bin/activate
+```
 
 1. 安装依赖
 ```bash
@@ -16,33 +21,16 @@ pip install -r requirements.txt
 python gui.py
 ```
 
-### 打包发布
-
-1. 进入 Electron 目录
-```bash
-cd electron
+### 打包压缩
 ```
-
-2. 安装依赖（首次）
-```bash
-npm install
+./pack.sh 
 ```
+输出smart-clicker-release.zip
+该文件打包的是current_game下的游戏。
 
-3. 打包应用
-```bash
-npm run build
-```
-
-4. 输出文件
-- macOS: `dist/SmartClicker-1.0.0.dmg`
-- Windows: `dist/SmartClicker-1.0.0.exe`
-
-用户无需安装 Python，开箱即用。
-
-## 使用流程
-1. 点击「📷 截图添加素材」，截取游戏按钮
-2. 选择按钮类型（干扰弹窗、关闭、打开等）
-3. 点击「▶ 启动挂机引擎」
+### 交付用户
+把smart-clicker-release.zip和setup.sh（或setup.bat）交付给用户。
+用户执行setup.sh即可。
 
 ## 策略说明
 
@@ -53,88 +41,6 @@ npm run build
 | 关闭 | 中 | 需要满足前置条件才点击 |
 | 打开 | 低 | 主动点击观看广告、领取奖励 |
 | 关闭前置条件 | - | 仅用于检测，不点击 |
-
-## 游戏管理
-
-### 开发模式
-```bash
-python gui.py                    # 直接使用，配置保存在 current_game/
-```
-
-### 打包发布
-```bash
-cd electron
-npm install                      # 首次需要安装依赖
-npm run build                    # 打包成独立应用
-```
-
-打包后输出：
-- macOS: `electron/dist/SmartClicker-1.0.0.dmg`
-- Windows: `electron/dist/SmartClicker-1.0.0.exe`
-
-用户无需安装 Python，开箱即用。
-
-## 配置说明
-
-配置文件：`current_game/config.json` 或 `config.json`
-
-```json
-{
-  "strategies": [
-    {
-      "name": "干扰弹窗",
-      "trigger_images": ["popup_123.png"],
-      "confidence": 0.75,
-      "post_delay": 0.5
-    }
-  ],
-  "settings": {
-    "idle_timeout": 300,
-    "scan_interval": 0.5
-  }
-}
-```
-
-## 诊断工具
-
-开发模式下可以使用以下工具：
-
-```bash
-# 测试所有图片的识别效果
-python test_recognition.py
-
-# 测试单张图片
-python test_recognition.py popup_1772125941.png
-
-# 其他诊断工具
-python 诊断识别问题.py
-python 对比测试.py
-```
-
-## 常见问题
-
-**Q: 识别不到图片？**
-- 运行 `python test_recognition.py` 查看所有图片的识别效果
-- 查看日志中的匹配分数，如果接近 0.7 可以降低阈值
-- 如果分数 < 0.6，需要重新截图
-- 确保游戏界面显示目标按钮
-
-**Q: 没有点击行为？**
-- 查看日志：`debug.log`
-- 确保图片在 `current_game/assets/`
-- 检查策略是否启用
-- 检查是否满足前置条件
-
-**Q: 如何打包发布？**
-- 进入 `electron/` 目录
-- 运行 `npm run build`
-- 分发生成的 .dmg 或 .exe 文件
-
-**Q: 识别算法可靠吗？**
-- 使用 OpenCV 灰度模板匹配
-- 匹配分数通常 0.8-0.95（高）
-- 支持 85%-100% 的尺寸变化
-- 详见 `RECOGNITION_ANALYSIS.md`
 
 ## 目录结构
 
@@ -162,9 +68,8 @@ smart_clicker/
 ```
 
 **说明：**
-- 所有截图和配置都保存在 `current_game/`
+- 当前游戏目录 `current_game/`
 - `games/` 用于备份和管理多个游戏
-- `electron/` 用于打包成独立应用
 
 ## 技术栈
 

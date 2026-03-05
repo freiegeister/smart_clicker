@@ -16,11 +16,7 @@ __pycache__/
 debug*.png
 temp_*.png
 preview_*.png
-
-games/
-
-setup.*
-
+*.zip
 
 # 打包输出
 dist/
